@@ -5,9 +5,10 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 STATE_FILE = "seen_videos.json"
+DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash"]
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -73,8 +74,10 @@ def fetch_rss_entries(channel_id: str) -> list[dict[str, str]]:
     return list(reversed(entries))
 
 
-def summarize_video(video_url: str, api_key: str) -> str:
-    """Generate a condensed video summary using Gemini."""
+def summarize_video(
+    video_url: str, api_key: str, model: str | None = None
+) -> str:
+    """Generate a condensed video summary using Gemini, with fallback on 503/server errors."""
     client = genai.Client(api_key=api_key)
     prompt = (
         "You are an NBA fantasy basketball assistant summarizing this video for a 9-cat, 12-team "
@@ -98,16 +101,26 @@ def summarize_video(video_url: str, api_key: str) -> str:
         "Use only these verdicts: ADD, STREAM, BUY LOW / HOLD, SELL HIGH, DROP, IGNORE (Fluke)."
     )
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=[
-            types.Part.from_uri(file_uri=video_url, mime_type="video/mp4"),
-            prompt,
-        ],
-    )
-    if not response.text:
-        raise RuntimeError("Gemini returned an empty summary.")
-    return response.text
+    models_to_try = [model] if model else DEFAULT_MODELS
+    last_error: Exception | None = None
+
+    for candidate in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=candidate,
+                contents=[
+                    types.Part.from_uri(file_uri=video_url, mime_type="video/mp4"),
+                    prompt,
+                ],
+            )
+            if not response.text:
+                raise RuntimeError("Gemini returned an empty summary.")
+            return response.text
+        except errors.ServerError as exc:
+            last_error = exc
+            print(f"Model {candidate} unavailable ({exc.code}); trying fallback...")
+
+    raise last_error or RuntimeError("All Gemini models failed.")
 
 
 def send_discord_message(title: str, url: str, summary: str, webhook_url: str) -> None:
@@ -159,6 +172,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also post the test summary to DISCORD_WEBHOOK_URL (only with --test-url or --latest).",
     )
+    parser.add_argument(
+        "--model",
+        help="Override the Gemini model (e.g. gemini-3.6-flash).",
+    )
     args = parser.parse_args()
     if args.send_discord and not (args.test_url or args.latest):
         parser.error("--send-discord requires --test-url or --latest")
@@ -198,7 +215,7 @@ def run_test_mode(args: argparse.Namespace) -> None:
         url = latest["url"]
 
     print(f"Summarizing (dry run): {title} ({url})\n")
-    summary = summarize_video(url, api_key)
+    summary = summarize_video(url, api_key, model=args.model)
     print(f"=== {title} ===\n{url}\n\n{summary}")
 
     if args.send_discord:
@@ -237,7 +254,7 @@ def main() -> None:
     for video in new_entries:
         print(f"Summarizing: {video['title']} ({video['url']})")
         try:
-            summary = summarize_video(video["url"], api_key)
+            summary = summarize_video(video["url"], api_key, model=args.model)
             send_discord_message(video["title"], video["url"], summary, webhook_url)
             seen.append(video["id"])
             save_seen_videos(seen)
