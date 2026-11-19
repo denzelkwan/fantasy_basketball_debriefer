@@ -76,10 +76,16 @@ def summarize_video(video_url: str, api_key: str) -> str:
     """Generate a condensed video summary using Gemini."""
     client = genai.Client(api_key=api_key)
     prompt = (
-        "Provide a condensed summary of this video under 3,500 characters. Include:\n"
-        "1. **Core Thesis** (1-2 sentences)\n"
-        "2. **Key Takeaways** (bullet points with timestamps)\n"
-        "3. **Actionable Advice or Conclusions**"
+        "This video talks about NBA fantasy basketball. The goal from these videos is to get "
+        "information about what the best choices to make are given the newest pieces of information. "
+        "Summarize the video by highlighting each player mentioned and what to take away from it. "
+        "A player may have a good performance, but it could be a fluke so the decision could be to ignore. "
+        "A player could be injured which causes a boost in other players. "
+        "A player could be traded which causes a boost in other players. "
+        "A player could have a bad game, but his minutes have increased which should increase their usage. "
+        "Some players will have a really good schedule which mathematically gives me more stats due to volume of games. "
+        "All of this I want to know, so I know which player to add to my team and which player I can safely drop.\n\n"
+        "Be concise. Use few words to give me the gist."
     )
 
     response = client.models.generate_content(
