@@ -116,6 +116,9 @@ def summarize_video(
                 ],
                 config=types.GenerateContentConfig(
                     media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level=types.ThinkingLevel.LOW,
+                    ),
                 ),
             )
             if not response.text:
