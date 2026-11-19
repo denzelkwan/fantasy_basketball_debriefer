@@ -150,7 +150,6 @@ def send_discord_message(title: str, url: str, summary: str, webhook_url: str) -
     truncated_summary = summary[:4000] + ("..." if len(summary) > 4000 else "")
 
     payload = {
-        "username": "YouTube Summarizer",
         "embeds": [
             {
                 "title": title[:256],
