@@ -10,3 +10,29 @@ Zero-cost automated pipeline that monitors a YouTube channel via its native RSS 
    - `DISCORD_WEBHOOK_URL`
 2. Run **Actions → YouTube Summary Pipeline → Run workflow** once to seed `seen_videos.json` with existing videos without spamming Discord.
 3. Subsequent runs execute automatically every 4 hours (`15 */4 * * *`).
+
+## Local Testing
+
+You can test the Gemini prompt locally without modifying `seen_videos.json` or posting to Discord:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install google-genai
+
+cp .env.example .env
+# Fill in GEMINI_API_KEY, YOUTUBE_CHANNEL_ID, and DISCORD_WEBHOOK_URL in .env
+```
+
+Run a dry-run test:
+
+```bash
+# Summarize the newest video from YOUTUBE_CHANNEL_ID (terminal only)
+python3 summarize.py --latest
+
+# Summarize a specific video URL (terminal only)
+python3 summarize.py --test-url "https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
+
+# Optionally preview the Discord embed as well
+python3 summarize.py --latest --send-discord
+```
