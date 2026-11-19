@@ -9,7 +9,7 @@ from google import genai
 from google.genai import errors, types
 
 STATE_FILE = "seen_videos.json"
-DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
+DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -120,7 +120,9 @@ def summarize_video(
             if not response.text:
                 raise RuntimeError("Gemini returned an empty summary.")
             return response.text
-        except errors.ServerError as exc:
+        except errors.APIError as exc:
+            if exc.code not in (404, 429, 500, 502, 503, 504):
+                raise
             last_error = exc
             print(f"Model {candidate} unavailable ({exc.code}); trying fallback...")
 
