@@ -113,6 +113,9 @@ def summarize_video(
                     types.Part.from_uri(file_uri=video_url, mime_type="video/mp4"),
                     prompt,
                 ],
+                config=types.GenerateContentConfig(
+                    media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+                ),
             )
             if not response.text:
                 raise RuntimeError("Gemini returned an empty summary.")
