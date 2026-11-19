@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -215,8 +216,10 @@ def run_test_mode(args: argparse.Namespace) -> None:
         url = latest["url"]
 
     print(f"Summarizing (dry run): {title} ({url})\n")
+    start = time.perf_counter()
     summary = summarize_video(url, api_key, model=args.model)
-    print(f"=== {title} ===\n{url}\n\n{summary}")
+    elapsed = time.perf_counter() - start
+    print(f"=== {title} ===\n{url}\n\n{summary}\n\n[Summary generated in {elapsed:.2f}s]")
 
     if args.send_discord:
         webhook_url = require_env("DISCORD_WEBHOOK_URL")
