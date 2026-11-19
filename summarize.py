@@ -106,6 +106,7 @@ def summarize_video(
     last_error: Exception | None = None
 
     for candidate in models_to_try:
+        attempt_start = time.perf_counter()
         try:
             response = client.models.generate_content(
                 model=candidate,
@@ -119,12 +120,18 @@ def summarize_video(
             )
             if not response.text:
                 raise RuntimeError("Gemini returned an empty summary.")
+            attempt_elapsed = time.perf_counter() - attempt_start
+            print(f"[Model] Succeeded with {candidate} in {attempt_elapsed:.2f}s")
             return response.text
         except errors.APIError as exc:
+            attempt_elapsed = time.perf_counter() - attempt_start
             if exc.code not in (404, 429, 500, 502, 503, 504):
                 raise
             last_error = exc
-            print(f"Model {candidate} unavailable ({exc.code}); trying fallback...")
+            print(
+                f"[Model] {candidate} failed ({exc.code}) after {attempt_elapsed:.2f}s; "
+                "trying fallback..."
+            )
 
     raise last_error or RuntimeError("All Gemini models failed.")
 
