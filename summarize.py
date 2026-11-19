@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from google import genai
@@ -164,13 +165,28 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def fetch_video_title(video_url: str) -> str:
+    """Fetch a YouTube video's title via oEmbed, falling back to a generic label."""
+    oembed_url = (
+        "https://www.youtube.com/oembed?"
+        + urllib.parse.urlencode({"url": video_url, "format": "json"})
+    )
+    req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data.get("title") or "Test Video Summary"
+    except Exception:
+        return "Test Video Summary"
+
+
 def run_test_mode(args: argparse.Namespace) -> None:
     """Run a single-video dry run without updating seen_videos.json."""
     api_key = require_env("GEMINI_API_KEY")
 
     if args.test_url:
-        title = "Test Video Summary"
         url = args.test_url
+        title = fetch_video_title(url)
     else:
         channel_id = require_env("YOUTUBE_CHANNEL_ID")
         entries = fetch_rss_entries(channel_id)
@@ -183,7 +199,7 @@ def run_test_mode(args: argparse.Namespace) -> None:
 
     print(f"Summarizing (dry run): {title} ({url})\n")
     summary = summarize_video(url, api_key)
-    print(summary)
+    print(f"=== {title} ===\n{url}\n\n{summary}")
 
     if args.send_discord:
         webhook_url = require_env("DISCORD_WEBHOOK_URL")
