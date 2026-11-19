@@ -8,7 +8,7 @@ from google import genai
 from google.genai import errors, types
 
 STATE_FILE = "seen_videos.json"
-DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash"]
+DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
 
 
 def load_dotenv(path: str = ".env") -> None:

@@ -1,6 +1,6 @@
 # Fantasy Basketball Debriefer
 
-Zero-cost automated pipeline that monitors a YouTube channel via its native RSS feed, summarizes new uploads with Gemini (`gemini-3.5-flash`), and posts the summary to a private Discord channel via webhook.
+Zero-cost automated pipeline that monitors a YouTube channel via its native RSS feed, summarizes new uploads with Gemini (`gemini-3.8-flash`, with automatic fallback), and posts the summary to a private Discord channel via webhook.
 
 ## Setup
 
