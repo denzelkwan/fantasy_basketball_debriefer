@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import urllib.request
@@ -5,12 +6,28 @@ import xml.etree.ElementTree as ET
 from google import genai
 from google.genai import types
 
-CHANNEL_ID = os.environ["YOUTUBE_CHANNEL_ID"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
-
 STATE_FILE = "seen_videos.json"
-RSS_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={CHANNEL_ID}"
+
+
+def load_dotenv(path: str = ".env") -> None:
+    """Load key=value pairs from a local .env file without overriding existing env vars."""
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def require_env(name: str) -> str:
+    """Return a required environment variable or raise a clear error."""
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
 
 
 def load_seen_videos() -> list[str]:
@@ -27,9 +44,10 @@ def save_seen_videos(video_ids: list[str]) -> None:
         json.dump(video_ids[-100:], f, indent=2)
 
 
-def fetch_rss_entries() -> list[dict[str, str]]:
+def fetch_rss_entries(channel_id: str) -> list[dict[str, str]]:
     """Fetch and parse YouTube channel RSS feed entries, oldest first."""
-    req = urllib.request.Request(RSS_URL, headers={"User-Agent": "Mozilla/5.0"})
+    rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+    req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=15) as response:
         xml_data = response.read()
 
@@ -54,9 +72,9 @@ def fetch_rss_entries() -> list[dict[str, str]]:
     return list(reversed(entries))
 
 
-def summarize_video(video_url: str) -> str:
+def summarize_video(video_url: str, api_key: str) -> str:
     """Generate a condensed video summary using Gemini."""
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=api_key)
     prompt = (
         "Provide a condensed summary of this video under 3,500 characters. Include:\n"
         "1. **Core Thesis** (1-2 sentences)\n"
@@ -76,7 +94,7 @@ def summarize_video(video_url: str) -> str:
     return response.text
 
 
-def send_discord_message(title: str, url: str, summary: str) -> None:
+def send_discord_message(title: str, url: str, summary: str, webhook_url: str) -> None:
     """Post the video summary to Discord as an embed."""
     # Discord embeds allow up to 4,096 characters in the description
     truncated_summary = summary[:4000] + ("..." if len(summary) > 4000 else "")
@@ -94,7 +112,7 @@ def send_discord_message(title: str, url: str, summary: str) -> None:
     }
 
     req = urllib.request.Request(
-        DISCORD_WEBHOOK_URL,
+        webhook_url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
@@ -107,10 +125,72 @@ def send_discord_message(title: str, url: str, summary: str) -> None:
             raise RuntimeError(f"Discord returned status {response.status}")
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for local testing vs. normal pipeline execution."""
+    parser = argparse.ArgumentParser(description="Automated YouTube Summary Pipeline")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--test-url",
+        help="Summarize a single YouTube URL without modifying seen_videos.json.",
+    )
+    mode.add_argument(
+        "--latest",
+        action="store_true",
+        help="Summarize the newest video from YOUTUBE_CHANNEL_ID without modifying seen_videos.json.",
+    )
+    parser.add_argument(
+        "--send-discord",
+        action="store_true",
+        help="Also post the test summary to DISCORD_WEBHOOK_URL (only with --test-url or --latest).",
+    )
+    args = parser.parse_args()
+    if args.send_discord and not (args.test_url or args.latest):
+        parser.error("--send-discord requires --test-url or --latest")
+    return args
+
+
+def run_test_mode(args: argparse.Namespace) -> None:
+    """Run a single-video dry run without updating seen_videos.json."""
+    api_key = require_env("GEMINI_API_KEY")
+
+    if args.test_url:
+        title = "Test Video Summary"
+        url = args.test_url
+    else:
+        channel_id = require_env("YOUTUBE_CHANNEL_ID")
+        entries = fetch_rss_entries(channel_id)
+        if not entries:
+            print("No videos found in RSS feed.")
+            return
+        latest = entries[-1]
+        title = latest["title"]
+        url = latest["url"]
+
+    print(f"Summarizing (dry run): {title} ({url})\n")
+    summary = summarize_video(url, api_key)
+    print(summary)
+
+    if args.send_discord:
+        webhook_url = require_env("DISCORD_WEBHOOK_URL")
+        send_discord_message(title, url, summary, webhook_url)
+        print("\nPosted test summary to Discord.")
+
+
 def main() -> None:
     """Check for new videos, summarize them, notify Discord, and update state."""
+    load_dotenv()
+    args = parse_args()
+
+    if args.test_url or args.latest:
+        run_test_mode(args)
+        return
+
+    channel_id = require_env("YOUTUBE_CHANNEL_ID")
+    api_key = require_env("GEMINI_API_KEY")
+    webhook_url = require_env("DISCORD_WEBHOOK_URL")
+
     seen = load_seen_videos()
-    entries = fetch_rss_entries()
+    entries = fetch_rss_entries(channel_id)
 
     # Seed existing videos on first run without triggering summaries
     if not seen and entries:
@@ -126,8 +206,8 @@ def main() -> None:
     for video in new_entries:
         print(f"Summarizing: {video['title']} ({video['url']})")
         try:
-            summary = summarize_video(video["url"])
-            send_discord_message(video["title"], video["url"], summary)
+            summary = summarize_video(video["url"], api_key)
+            send_discord_message(video["title"], video["url"], summary, webhook_url)
             seen.append(video["id"])
             save_seen_videos(seen)
         except Exception as e:
