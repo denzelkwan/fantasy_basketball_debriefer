@@ -9,7 +9,7 @@ Zero-cost automated pipeline that monitors a YouTube channel via its native RSS 
    - `GEMINI_API_KEY`
    - `DISCORD_WEBHOOK_URL`
 2. Run **Actions → YouTube Summary Pipeline → Run workflow** once to seed `seen_videos.json` with existing videos without spamming Discord.
-3. Subsequent runs execute automatically every 15 minutes (`*/15 * * * *`).
+3. Subsequent runs execute automatically every 15 minutes (`7,22,37,52 * * * *`).
 
 ## Local Testing
 

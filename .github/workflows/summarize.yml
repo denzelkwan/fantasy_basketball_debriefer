@@ -2,7 +2,7 @@ name: YouTube Summary Pipeline
 
 on:
   schedule:
-    - cron: "*/15 * * * *" # Runs every 15 minutes
+    - cron: "7,22,37,52 * * * *" # Runs every 15 minutes at odd offsets to avoid :00/:15/:30/:45 load
   workflow_dispatch:
 
 concurrency:
