@@ -8,8 +8,8 @@ Zero-cost automated pipeline that monitors a YouTube channel via its native RSS 
    - `YOUTUBE_CHANNEL_ID`
    - `GEMINI_API_KEY`
    - `DISCORD_WEBHOOK_URL`
-2. Run **Actions → YouTube Summary Pipeline → Run workflow** once to seed `seen_videos.json` with existing videos without spamming Discord.
-3. Subsequent runs execute automatically every 15 minutes (`7,22,37,52 * * * *`).
+2. Trigger **Actions → YouTube Summary Pipeline → Run workflow** once to seed `seen_videos.json` without spamming Discord.
+3. Schedule runs externally via **cron-job.org** (`POST` to `https://api.github.com/repos/denzelkwan/fantasy_basketball_debriefer/actions/workflows/summarize.yml/dispatches` with `{"ref":"main"}` and a repo-scoped Fine-grained PAT with `Actions: Read and write`). GitHub's built-in `schedule` cron is disabled to avoid dropped runs.
 
 ## Local Testing
 
